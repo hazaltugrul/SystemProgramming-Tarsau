@@ -1,6 +1,18 @@
 # Prerequisites
 *.d
 
+
+.vs/
+*.ipch
+*.suo
+*.VC.db
+*.VC.db-shm
+*.VC.db-wal
+*.VC.opendb
+ProjectSettings.json
+slnx.sqlite
+VSWorkspaceState.json
+
 # Object files
 *.o
 *.ko
