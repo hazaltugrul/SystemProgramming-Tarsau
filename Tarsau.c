@@ -18,6 +18,66 @@ int isTextFile(const char* fileName) {
 	}
 	return 0; // Couldn't open or not a ASCII file ?? this will be a problem.
 }
+void getFileInfos(char* fileNameArray[], int fileNameCount, const char* outputFileName) {
+	FileInfo fileInfos[MAX_FILES];
+	off_t totalSize = 0;
+
+	for (int i = 0; i < fileNameCount; ++i) {
+		struct stat fileStat;
+		if (stat(fileNameArray[i], &fileStat) == -1) {
+			perror("Dosya boyutunu alirken bir hata olustu");
+			continue;
+		}
+
+		if (totalSize + fileStat.st_size <= MAX_TOTAL_SIZE) {
+			totalSize += fileStat.st_size;
+
+			strncpy(fileInfos[i].fileName, fileNameArray[i], sizeof(fileInfos[i].fileName) - 1);
+			fileInfos[i].fileName[sizeof(fileInfos[i].fileName) - 1] = '\0';
+
+			fileInfos[i].permissions = fileStat.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO);
+			fileInfos[i].size = fileStat.st_size;
+
+			int fd = open(fileNameArray[i], O_RDONLY);
+			if (fd < 0) {
+				perror("Couldn't open the file");
+				continue;
+			}
+
+			fileInfos[i].content = (char*)malloc((fileStat.st_size + 1) * sizeof(char));
+			if (fileInfos[i].content == NULL) {
+				perror("Bellek tahsis edilirken bir hata olustu");
+				close(fd);
+				continue;
+			}
+
+			ssize_t bytesRead = read(fd, fileInfos[i].content, fileStat.st_size);
+			if (bytesRead != fileStat.st_size) {
+				perror("Dosya okunurken bir hata olustu");
+				close(fd);
+				free(fileInfos[i].content);
+				continue;
+			}
+
+			fileInfos[i].content[fileStat.st_size] = '\0';
+
+			close(fd);
+		}
+		else {
+			printf("%s eklenemedi cunku totalSize 200MB yi gecti\n", fileNameArray[i]);
+		}
+	}
+	for (int i = 0; i < fileNameCount; ++i) {
+		printf("%s", fileInfos[i].content);
+	}
+
+	writeToArchive(fileInfos, outputFileName, fileNameCount, totalSize);
+	for (int i = 0; i < fileNameCount; ++i) {
+		free(fileInfos[i].content);
+	}
+}
+
+
 
 int chooseParameter(int argc, char* argv[]) {
 
@@ -67,7 +127,7 @@ int chooseParameter(int argc, char* argv[]) {
 			return EXIT_FAILURE;
 		}
 
-		//TODO: Redirect the method to the method that has the  getFileInfos(fileNameArray, fileNameCount, outputFileName); sign or something like that.
+		getFileInfos(fileNameArray, fileNameCount, outputFileName); 
 	}
 	// for -a operation
 	else if (strcmp(argv[1], "-a") == 0)
