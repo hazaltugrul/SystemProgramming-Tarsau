@@ -18,6 +18,40 @@ int isTextFile(const char* fileName) {
 	}
 	return 0; // Couldn't open or not a ASCII file ?? this will be a problem.
 }
+void writeToArchive(FileInfo* fileInfos, const char* outputFileName, int fileNameCount, off_t totalSize) {
+	FILE* archiveFile = fopen(outputFileName, "w");
+	if (archiveFile == NULL) {
+		printf("Arsiv dosyasi olusturulurken hata olustu!\n");
+		return;
+	}
+
+	fprintf(archiveFile, "%010ld", totalSize);
+	fprintf(archiveFile, "\n");
+
+	// Dosya bilgilerini yaz
+	for (int i = 0; i < fileNameCount; i++) {
+		fprintf(archiveFile, "|%s,%o,%ld|\n", fileInfos[i].fileName, fileInfos[i].permissions, fileInfos[i].size);
+	}
+
+	for (int i = 0; i < fileNameCount; i++) {
+		int fd = open(fileInfos[i].fileName, O_RDONLY);
+		if (fd < 0) {
+			printf("Dosya acilirken hata olustu!\n");
+			continue;
+		}
+
+		char buffer[1024];
+		ssize_t bytesRead;
+
+		while ((bytesRead = read(fd, buffer, sizeof(buffer))) > 0) {
+			fwrite(buffer, sizeof(char), bytesRead, archiveFile);
+		}
+		close(fd);
+	}
+
+	fclose(archiveFile);
+	printf("The files have been merged.\n");
+}
 void getFileInfos(char* fileNameArray[], int fileNameCount, const char* outputFileName) {
 	FileInfo fileInfos[MAX_FILES];
 	off_t totalSize = 0;
