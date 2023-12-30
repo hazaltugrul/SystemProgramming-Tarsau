@@ -18,6 +18,55 @@ int isTextFile(const char* fileName) {
 	}
 	return 0; // Couldn't open or not a ASCII file ?? this will be a problem.
 }
+void extractArchive(char* archiveFileName, char* outputFolderName) {
+
+	if (mkdir(outputFolderName, 0777) == -1) {
+		perror("mkdir");
+		exit(EXIT_FAILURE);
+	}
+
+	FILE* archiveFile = fopen(archiveFileName, "r");
+	if (archiveFile == NULL) {
+		perror("fopen");
+		exit(EXIT_FAILURE);
+	}
+
+	int lineCount = 0;
+	int fileCount = 0;
+	char line[1000];
+	FileInfo fileInfos[MAX_FILES];
+
+	int startingLine = 2;
+	while (lineCount < startingLine - 1) {
+		fgets(line, sizeof(line), archiveFile);
+		lineCount++;
+	}
+
+	while (fgets(line, sizeof(line), archiveFile) != NULL && fileCount < MAX_FILES) {
+		if (line[0] == '|') {
+			char fileName[100];
+			int permissions;
+			long size;
+
+			if (sscanf(line, "|%99[^,],%o,%ld|", fileName, &permissions, &size) == 3) {
+				snprintf(fileInfos[fileCount].fileName, sizeof(fileInfos[fileCount].fileName), "%s", fileName);
+				fileInfos[fileCount].permissions = permissions;
+				fileInfos[fileCount].size = size;
+				fileCount++;
+			}
+			else {
+				// Hata iþleme
+			}
+		}
+	}
+
+	fclose(file);
+}
+
+
+
+
+knk bunu commitlersin getting the files infos diye
 void writeToArchive(FileInfo* fileInfos, const char* outputFileName, int fileNameCount, off_t totalSize) {
 	FILE* archiveFile = fopen(outputFileName, "w");
 	if (archiveFile == NULL) {
