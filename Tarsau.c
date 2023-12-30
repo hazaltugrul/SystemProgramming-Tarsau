@@ -59,14 +59,36 @@ void extractArchive(char* archiveFileName, char* outputFolderName) {
 			}
 		}
 	}
+	printf("%d : bu file count \n\n", fileCount);
+	for (int i = 0; i < fileCount; i++) {
+		printf("Dosya Adý: %s\n", fileInfos[i].fileName);
+		printf("Ýzinler: %o\n", fileInfos[i].permissions);
+		printf("Boyut: %ld\n", fileInfos[i].size);
+		printf("------------\n");
+	}
 
+	fclose(archiveFile);
+
+	int findContentsResult = findContents(fileInfos, archiveFileName, fileCount);
+
+	if (findContentsResult == 0) {
+		for (int i = 0; i < fileCount; i++) {
+			char filePath[100];
+			snprintf(filePath, sizeof(filePath), "%s/%s", outputFolderName, fileInfos[i].fileName);
+
+			FILE* file = fopen(filePath, "w");
+			if (file == NULL) {
+				perror("fopen");
+				exit(EXIT_FAILURE);
+			}
+
+			fprintf(file, "%s", fileInfos[i].content);
+		}
+	}
+	
 	fclose(file);
 }
 
-
-
-
-knk bunu commitlersin getting the files infos diye
 void writeToArchive(FileInfo* fileInfos, const char* outputFileName, int fileNameCount, off_t totalSize) {
 	FILE* archiveFile = fopen(outputFileName, "w");
 	if (archiveFile == NULL) {
@@ -237,7 +259,7 @@ int chooseParameter(int argc, char* argv[]) {
 	}
 	return EXIT_SUCCESS;
 }
-knk onu commitledikten sonra aradan biraz zaman geçsin
+
 
 int findContents(FileInfo* fileInfos, char* archiveFileName, int fileCount) {
 	FILE* file = fopen(archiveFileName, "r");
