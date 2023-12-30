@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define Max_Byte 10000
 //TODO: correct this return value to -1 or something then correct the chooseParameter() method
 int isTextFile(const char* fileName) {
 	FILE* file = fopen(fileName, "r");
@@ -14,10 +15,11 @@ int isTextFile(const char* fileName) {
 			}
 		}
 		fclose(file);
-		return 1; 
+		return 1;
 	}
 	return 0; // Couldn't open or not a ASCII file ?? this will be a problem.
 }
+
 void extractArchive(char* archiveFileName, char* outputFolderName) {
 
 	if (mkdir(outputFolderName, 0777) == -1) {
@@ -48,30 +50,22 @@ void extractArchive(char* archiveFileName, char* outputFolderName) {
 			int permissions;
 			long size;
 
-			if (sscanf(line, "|%99[^,],%o,%ld|", fileName, &permissions, &size) == 3) {
-				snprintf(fileInfos[fileCount].fileName, sizeof(fileInfos[fileCount].fileName), "%s", fileName);
+			if (sscanf(line, "|%19[^,],%o,%ld|", fileName, &permissions, &size) == 3) {
+				strncpy(fileInfos[fileCount].fileName, fileName, sizeof(fileInfos[fileCount].fileName));
+				fileInfos[fileCount].fileName[sizeof(fileInfos[fileCount].fileName) - 1] = '\0'; 
+
 				fileInfos[fileCount].permissions = permissions;
 				fileInfos[fileCount].size = size;
 				fileCount++;
 			}
-			else {
-				// Hata iþleme
-			}
 		}
 	}
-	printf("%d : bu file count \n\n", fileCount);
-	for (int i = 0; i < fileCount; i++) {
-		printf("Dosya Adý: %s\n", fileInfos[i].fileName);
-		printf("Ýzinler: %o\n", fileInfos[i].permissions);
-		printf("Boyut: %ld\n", fileInfos[i].size);
-		printf("------------\n");
-	}
+
 
 	fclose(archiveFile);
 
-	int findContentsResult = findContents(fileInfos, archiveFileName, fileCount);
 
-	if (findContentsResult == 0) {
+	if (findContents(fileInfos, archiveFileName, fileCount) == 0) {
 		for (int i = 0; i < fileCount; i++) {
 			char filePath[100];
 			snprintf(filePath, sizeof(filePath), "%s/%s", outputFolderName, fileInfos[i].fileName);
@@ -83,239 +77,250 @@ void extractArchive(char* archiveFileName, char* outputFolderName) {
 			}
 
 			fprintf(file, "%s", fileInfos[i].content);
+			fclose(file);
+
+			// Set the file permissions to the original permissions
+			if (chmod(filePath, fileInfos[i].permissions) != 0) {
+				perror("chmod");
+			}
 		}
+
+		for (int i = 0; i < fileCount; ++i) {
+			printf("%s ", fileInfos[i].fileName);
+		}
+
+		printf("Files opened in the %s directory.\n", outputFolderName);
+
 	}
-	
-	fclose(file);
+
 }
 
-void writeToArchive(FileInfo* fileInfos, const char* outputFileName, int fileNameCount, off_t totalSize) {
-	FILE* archiveFile = fopen(outputFileName, "w");
-	if (archiveFile == NULL) {
-		printf("Arsiv dosyasi olusturulurken hata olustu!\n");
-		return;
-	}
 
-	fprintf(archiveFile, "%010ld", totalSize);
-	fprintf(archiveFile, "\n");
-
-	// Dosya bilgilerini yaz
-	for (int i = 0; i < fileNameCount; i++) {
-		fprintf(archiveFile, "|%s,%o,%ld|\n", fileInfos[i].fileName, fileInfos[i].permissions, fileInfos[i].size);
-	}
-
-	for (int i = 0; i < fileNameCount; i++) {
-		int fd = open(fileInfos[i].fileName, O_RDONLY);
-		if (fd < 0) {
-			printf("Dosya acilirken hata olustu!\n");
-			continue;
+	void writeToArchive(FileInfo * fileInfos, const char* outputFileName, int fileNameCount, off_t totalSize) {
+		FILE* archiveFile = fopen(outputFileName, "w");
+		if (archiveFile == NULL) {
+			printf("Arsiv dosyasi olusturulurken hata olustu!\n");
+			return;
 		}
 
-		char buffer[1024];
-		ssize_t bytesRead;
+		fprintf(archiveFile, "%010ld", totalSize);
+		fprintf(archiveFile, "\n");
 
-		while ((bytesRead = read(fd, buffer, sizeof(buffer))) > 0) {
-			fwrite(buffer, sizeof(char), bytesRead, archiveFile);
-		}
-		close(fd);
-	}
-
-	fclose(archiveFile);
-	printf("The files have been merged.\n");
-}
-void getFileInfos(char* fileNameArray[], int fileNameCount, const char* outputFileName) {
-	FileInfo fileInfos[MAX_FILES];
-	off_t totalSize = 0;
-
-	for (int i = 0; i < fileNameCount; ++i) {
-		struct stat fileStat;
-		if (stat(fileNameArray[i], &fileStat) == -1) {
-			perror("Dosya boyutunu alirken bir hata olustu");
-			continue;
+		// Dosya bilgilerini yaz
+		for (int i = 0; i < fileNameCount; i++) {
+			fprintf(archiveFile, "|%s,%o,%ld|\n", fileInfos[i].fileName, fileInfos[i].permissions, fileInfos[i].size);
 		}
 
-		if (totalSize + fileStat.st_size <= MAX_TOTAL_SIZE) {
-			totalSize += fileStat.st_size;
-
-			strncpy(fileInfos[i].fileName, fileNameArray[i], sizeof(fileInfos[i].fileName) - 1);
-			fileInfos[i].fileName[sizeof(fileInfos[i].fileName) - 1] = '\0';
-
-			fileInfos[i].permissions = fileStat.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO);
-			fileInfos[i].size = fileStat.st_size;
-
-			int fd = open(fileNameArray[i], O_RDONLY);
+		for (int i = 0; i < fileNameCount; i++) {
+			int fd = open(fileInfos[i].fileName, O_RDONLY);
 			if (fd < 0) {
-				perror("Couldn't open the file");
+				printf("Dosya acilirken hata olustu!\n");
 				continue;
 			}
 
-			fileInfos[i].content = (char*)malloc((fileStat.st_size + 1) * sizeof(char));
-			if (fileInfos[i].content == NULL) {
-				perror("Bellek tahsis edilirken bir hata olustu");
-				close(fd);
-				continue;
+			char buffer[1024];
+			ssize_t bytesRead;
+
+			while ((bytesRead = read(fd, buffer, sizeof(buffer))) > 0) {
+				fwrite(buffer, sizeof(char), bytesRead, archiveFile);
 			}
-
-			ssize_t bytesRead = read(fd, fileInfos[i].content, fileStat.st_size);
-			if (bytesRead != fileStat.st_size) {
-				perror("Dosya okunurken bir hata olustu");
-				close(fd);
-				free(fileInfos[i].content);
-				continue;
-			}
-
-			fileInfos[i].content[fileStat.st_size] = '\0';
-
 			close(fd);
 		}
-		else {
-			printf("%s eklenemedi cunku totalSize 200MB yi gecti\n", fileNameArray[i]);
+
+		fclose(archiveFile);
+		printf("The files have been merged.\n");
+	}
+
+	void getFileInfos(char* fileNameArray[], int fileNameCount, const char* outputFileName) {
+		FileInfo fileInfos[MAX_FILES];
+		off_t totalSize = 0;
+
+		for (int i = 0; i < fileNameCount; ++i) {
+			struct stat fileStat;
+			if (stat(fileNameArray[i], &fileStat) == -1) {
+				perror("Dosya boyutunu alirken bir hata olustu");
+				continue;
+			}
+
+			if (totalSize + fileStat.st_size <= MAX_TOTAL_SIZE) {
+				totalSize += fileStat.st_size;
+
+				strncpy(fileInfos[i].fileName, fileNameArray[i], sizeof(fileInfos[i].fileName) - 1);
+				fileInfos[i].fileName[sizeof(fileInfos[i].fileName) - 1] = '\0';
+
+				fileInfos[i].permissions = fileStat.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO);
+				fileInfos[i].size = fileStat.st_size;
+
+				int fd = open(fileNameArray[i], O_RDONLY);
+				if (fd < 0) {
+					perror("Couldn't open the file");
+					continue;
+				}
+
+				fileInfos[i].content = (char*)malloc((fileStat.st_size + 1) * sizeof(char));
+				if (fileInfos[i].content == NULL) {
+					perror("Bellek tahsis edilirken bir hata olustu");
+					close(fd);
+					continue;
+				}
+
+				ssize_t bytesRead = read(fd, fileInfos[i].content, fileStat.st_size);
+				if (bytesRead != fileStat.st_size) {
+					perror("Dosya okunurken bir hata olustu");
+					close(fd);
+					free(fileInfos[i].content);
+					continue;
+				}
+
+				fileInfos[i].content[fileStat.st_size] = '\0';
+
+				close(fd);
+			}
+			else {
+				printf("%s eklenemedi cunku totalSize 200MB yi gecti\n", fileNameArray[i]);
+			}
+		}
+		for (int i = 0; i < fileNameCount; ++i) {
+			printf("%s", fileInfos[i].content);
+		}
+
+		writeToArchive(fileInfos, outputFileName, fileNameCount, totalSize);
+		for (int i = 0; i < fileNameCount; ++i) {
+			free(fileInfos[i].content);
 		}
 	}
-	for (int i = 0; i < fileNameCount; ++i) {
-		printf("%s", fileInfos[i].content);
-	}
 
-	writeToArchive(fileInfos, outputFileName, fileNameCount, totalSize);
-	for (int i = 0; i < fileNameCount; ++i) {
-		free(fileInfos[i].content);
-	}
-}
+	int chooseParameter(int argc, char* argv[]) {
 
-
-
-int chooseParameter(int argc, char* argv[]) {
-
-	if (argc < 4 || (strcmp(argv[1], "-b") == 0 && strcmp(argv[1], "-a") == 0))
-	{
-		printf("Usage: %s -b input_files -o output_file\n", argv[0]);
-		printf("       %s -a archive_file directory\n", argv[0]);
-		return EXIT_FAILURE;
-	}
-	// for -b operations
-	else if (strcmp(argv[1], "-b") == 0)
-	{
-		char* outputFileName = (strcmp(argv[argc - 2], "-o") == 0) ? argv[argc - 1] : "a.sau";
-		char* fileNameArray[MAX_FILES];
-		int fileNameCount = 0;
-
-		for (int i = 2; i < argc; i++)
+		if (argc < 4 || (strcmp(argv[1], "-b") == 0 && strcmp(argv[1], "-a") == 0))
 		{
-			if (strcmp(argv[i], "-o") == 0)
+			printf("Usage: %s -b input_files -o output_file\n", argv[0]);
+			printf("       %s -a archive_file directory\n", argv[0]);
+			return EXIT_FAILURE;
+		}
+		// for -b operations
+		else if (strcmp(argv[1], "-b") == 0)
+		{
+			char* outputFileName = (strcmp(argv[argc - 2], "-o") == 0) ? argv[argc - 1] : "a.sau";
+			char* fileNameArray[MAX_FILES];
+			int fileNameCount = 0;
+
+			for (int i = 2; i < argc; i++)
 			{
-				break;
+				if (strcmp(argv[i], "-o") == 0)
+				{
+					break;
+				}
+				else
+				{
+					if (isTextFile(argv[i]))
+					{
+						if (fileNameCount < MAX_FILES)
+						{
+							fileNameArray[fileNameCount++] = argv[i];
+						}
+						else
+						{
+							printf("32 den daha fazla text file i mergeleyemezsiniz\n");
+							return EXIT_FAILURE;
+						}
+					}
+					else if (isTextFile(argv[i]))
+					{
+						printf("%s file isn't a ASCII text file.", argv[i]);
+					}
+				}
+			}
+
+			if (fileNameCount == 0)
+			{
+				printf("Argumanlariniz arasinda text file yok\n");
+				return EXIT_FAILURE;
+			}
+
+			getFileInfos(fileNameArray, fileNameCount, outputFileName);
+		}
+		// for -a operation
+		else if (strcmp(argv[1], "-a") == 0)
+		{
+			if (argc < 3)
+			{
+				printf("Usage: %s -a archive_file optional[extract_directory]\n", argv[0]);
+				return EXIT_FAILURE;
+			}
+			if (strstr(argv[2], ".sau") != NULL)
+			{
+				char* archiveFileName = argv[2];
+				char* outputFolderName = argc == 4 ? argv[3] : "d1";
+				extractArchive(archiveFileName, outputFolderName); 
 			}
 			else
 			{
-				if (isTextFile(argv[i]))
-				{
-					if (fileNameCount < MAX_FILES)
-					{
-						fileNameArray[fileNameCount++] = argv[i];
-					}
-					else
-					{
-						printf("32 den daha fazla text file i mergeleyemezsiniz\n");
-						return EXIT_FAILURE;
-					}
-				}
-				else if (isTextFile(argv[i]))
-				{
-					printf("%s file isn't a ASCII text file.", argv[i]);
-				}
+				printf("Archive file is inappropriate or corrupt!\n");
 			}
 		}
-
-		if (fileNameCount == 0)
-		{
-			printf("Argumanlariniz arasinda text file yok\n");
+		else {
+			printf("Invalid arguments\n");
 			return EXIT_FAILURE;
 		}
-
-		getFileInfos(fileNameArray, fileNameCount, outputFileName); 
+		return EXIT_SUCCESS;
 	}
-	// for -a operation
-	else if (strcmp(argv[1], "-a") == 0)
-	{
-		if (argc < 3)
-		{
-			printf("Usage: %s -a archive_file optional[extract_directory]\n", argv[0]);
-			return EXIT_FAILURE;
+
+
+	int findContents(FileInfo * fileInfos, char* archiveFileName, int fileCount) {
+		char FullContent[100][Max_Byte][Max_Byte]; // 2D array for content storage
+		FILE* file = fopen(archiveFileName, "r");
+		if (file == NULL) {
+			printf("Unable to open the file.\n");
+			return 1;
 		}
-		if (strstr(argv[2], ".sau") != NULL)
-		{
-			char* archiveFileName = argv[2];
-			char* outputFolderName = argc == 4 ? argv[3] : "d1";
-			//TODO: Redirect the method to the method that has the extractArchive(archiveFileName, outputFolderName); sign or something like that.
-		}
-		else
-		{
-			printf("Archive file is inappropriate or corrupt!\n");
-		}
-	}
-	else {
-		printf("Invalid arguments\n");
-		return EXIT_FAILURE;
-	}
-	return EXIT_SUCCESS;
-}
 
+		char line[Max_Byte]; // Temporary storage for each line
 
-int findContents(FileInfo* fileInfos, char* archiveFileName, int fileCount) {
-	FILE* file = fopen(archiveFileName, "r");
-	if (file == NULL) {
-		printf("Unable to open the file.\n");
-		return 1;
-	}
-
-	char line[32]; // Temporary storage for each line
-	int lineCount = 0;
-
-	// Get the number of lines
-	while (fgets(line, 32, file) != NULL) {
-		lineCount++;
-	}
-
-	if (lineCount < (2 * fileCount + 1)) {
-		printf("Insufficient content available.\n");
-		fclose(file);
-		return 1;
-	}
-
-	// Return to the beginning of the file
-	fseek(file, 0, SEEK_SET);
-
-	int i = 0;
-
-	int lineNumber = 1;
-	while (fgets(line, 32, file) != NULL) {
-		if (lineNumber > fileCount + 1) {
-			printf("Line %d: %s", lineNumber, line);
-			fileInfos[i].content = (char*)malloc(strlen(line) + 1);
-
-			if (fileInfos[i].content == NULL) {
-				printf("Memory allocation failed.\n");
+		// Skip lines until (fileCount + 1) line
+		for (int i = 0; i < (fileCount + 1); i++) {
+			if (fgets(line, sizeof(line), file) == NULL) {
+				printf("Insufficient content available.\n");
 				fclose(file);
 				return 1;
 			}
-			snprintf(fileInfos[i].content, strlen(line) + 1, "%s", line);
-			printf("Dosya contenti: %s\n\n", fileInfos[i].content);
-			i++;
-
 		}
-		lineNumber++;
+
+		int currentFileIndex = 0;
+		int lineNumber = 0;
+
+		while (currentFileIndex < fileCount) {
+			int lineTotalSize = 0;
+
+			while (lineTotalSize < fileInfos[currentFileIndex].size) {
+				if (fgets(line, sizeof(line), file) != NULL) {
+					snprintf(FullContent[currentFileIndex][lineNumber], sizeof(line), "%s", line);
+					lineTotalSize += strlen(line);
+					lineNumber++;
+				}
+				else {
+					break;
+				}
+			}
+
+			fileInfos[currentFileIndex].content = (char*)malloc(lineTotalSize + 1);
+			strcpy(fileInfos[currentFileIndex].content, "");
+
+			for (int i = 0; i < lineNumber; i++) {
+				strcat(fileInfos[currentFileIndex].content, FullContent[currentFileIndex][i]);
+			}
+
+			currentFileIndex++;
+			lineNumber = 0;
+		}
+
+		fclose(file);
+		return 0;
 	}
 
-	fclose(file);
-	return 0;
-}
 
-
-
-
-
-int main(int argc, char* argv[])
-{
-    chooseParameter(argc, argv);
-	return EXIT_SUCCESS;
-}
+	int main(int argc, char* argv[])
+	{
+		chooseParameter(argc, argv);
+		return EXIT_SUCCESS;
+	}
