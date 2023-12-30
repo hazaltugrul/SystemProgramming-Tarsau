@@ -237,6 +237,60 @@ int chooseParameter(int argc, char* argv[]) {
 	}
 	return EXIT_SUCCESS;
 }
+knk onu commitledikten sonra aradan biraz zaman geçsin
+
+int findContents(FileInfo* fileInfos, char* archiveFileName, int fileCount) {
+	FILE* file = fopen(archiveFileName, "r");
+	if (file == NULL) {
+		printf("Unable to open the file.\n");
+		return 1;
+	}
+
+	char line[32]; // Temporary storage for each line
+	int lineCount = 0;
+
+	// Get the number of lines
+	while (fgets(line, 32, file) != NULL) {
+		lineCount++;
+	}
+
+	if (lineCount < (2 * fileCount + 1)) {
+		printf("Insufficient content available.\n");
+		fclose(file);
+		return 1;
+	}
+
+	// Return to the beginning of the file
+	fseek(file, 0, SEEK_SET);
+
+	int i = 0;
+
+	int lineNumber = 1;
+	while (fgets(line, 32, file) != NULL) {
+		if (lineNumber > fileCount + 1) {
+			printf("Line %d: %s", lineNumber, line);
+			fileInfos[i].content = (char*)malloc(strlen(line) + 1);
+
+			if (fileInfos[i].content == NULL) {
+				printf("Memory allocation failed.\n");
+				fclose(file);
+				return 1;
+			}
+			snprintf(fileInfos[i].content, strlen(line) + 1, "%s", line);
+			printf("Dosya contenti: %s\n\n", fileInfos[i].content);
+			i++;
+
+		}
+		lineNumber++;
+	}
+
+	fclose(file);
+	return 0;
+}
+
+
+
+
 
 int main(int argc, char* argv[])
 {
