@@ -2,8 +2,8 @@
 #include "extractFiles.h"
 #include "createArchiveFile.h"
 
-int isTextFile(const char *fileName) {
-    FILE *file = fopen(fileName, "r");
+int isTextFile(const char* fileName) {
+    FILE* file = fopen(fileName, "r");
     if (file) {
         int c;
         while ((c = fgetc(file)) != EOF) {
@@ -19,60 +19,54 @@ int isTextFile(const char *fileName) {
 }
 
 
-int chooseParameter(int argc, char *argv[]){
-
-     if ((strcmp(argv[1], "-b") == 0 && strcmp(argv[1], "-a") == 0))
-    {
-        printf("Usage: %s -b input_files -o output_file\n", argv[0]);
-        printf("       %s -a archive_file directory\n", argv[0]);
+int chooseParameter(int argc, char* argv[]) {
+    if ((strcmp(argv[1], "-b") == 0 && strcmp(argv[1], "-a") == 0)) {
+        printf("Kullaným: %s -b giriþ_dosyalarý -o çýkýþ_dosyasý\n", argv[0]);
+        printf("       %s -a arþiv_dosyasý dizin\n", argv[0]);
         return EXIT_FAILURE;
     }
-    // for -b operations
-    else if (strcmp(argv[1], "-b") == 0)
-    {
-        char *outputFileName = (strcmp(argv[argc - 2], "-o") == 0) ? argv[argc - 1] : "a.sau";
+    else if (strcmp(argv[1], "-b") == 0) {
+        char* outputFileName = "a.sau"; 
 
-
-
-        char *fileNameArray[MAX_FILES];
-        int fileNameCount = 0;
-
-        for (int i = 2; i < argc; i++)
-        {
-            if (strcmp(argv[i], "-o") == 0)
-            {
-                break;
-            }
-            else
-            {
-                if (isTextFile(argv[i]))
-                {
-                    if (fileNameCount < MAX_FILES)
-                    {
-                        fileNameArray[fileNameCount++] = argv[i];
-                    }
-                    else
-                    {
-                        printf("Maximum 32 files van be merged\n");
-                        return EXIT_FAILURE;
-                    }
-                }
-                else if (isTextFile(argv[i]))
-                {
-                    printf("%s file isn't a ASCII text file.",argv[i]);
+        for (int i = 2; i < argc; i++) {
+            if (strcmp(argv[i], "-o") == 0) {
+                if (i + 1 < argc) {
+                    outputFileName = argv[i + 1];
+                    break;
                 }
             }
         }
 
-        if (fileNameCount == 0)
-        {
-            printf("Argumanlariniz arasinda text file yok\n");
-            return EXIT_FAILURE;
+        char* fileNameArray[MAX_FILES];
+        int fileNameCount = 0;
+
+        for (int i = 2; i < argc; i++) {
+            if (strcmp(argv[i], "-o") == 0) {
+                break;
+            }
+            else {
+                int isText = isTextFile(argv[i]);
+                if (!isText) {
+                    printf("%s  input file format is incompatible!.\n", argv[i]);
+                    return EXIT_FAILURE; 
+                }
+                if (fileNameCount < MAX_FILES) {
+                    fileNameArray[fileNameCount++] = argv[i];
+                }
+                else {
+                    printf("Max 32 file can be merge.\n");
+                    return EXIT_FAILURE; 
+                }
+            }
+        }
+
+        if (fileNameCount == 0) {
+            printf("There is no text file to merge.\n");
+            return EXIT_FAILURE; 
         }
 
         getFileInfos(fileNameArray, fileNameCount, outputFileName);
     }
-    // for -a operation
     else if (strcmp(argv[1], "-a") == 0)
     {
         if (argc < 3)
@@ -82,18 +76,19 @@ int chooseParameter(int argc, char *argv[]){
         }
         if (strstr(argv[2], ".sau") != NULL)
         {
-            char *archiveFileName = argv[2];
-            char *outputFolderName = argc == 4 ? argv[3] : "d1";
+            char* archiveFileName = argv[2];
+            char* outputFolderName = argc == 4 ? argv[3] : "d1";
             extractArchive(archiveFileName, outputFolderName);
         }
         else
         {
             printf("Archive file is inappropriate or corrupt!\n");
         }
-    }else {
+    }
+    else {
         printf("Invalid arguments\n");
         return EXIT_FAILURE;
     }
-return EXIT_SUCCESS;
-}
 
+    return EXIT_SUCCESS;
+}
